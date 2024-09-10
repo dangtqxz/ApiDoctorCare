@@ -37,5 +37,6 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapPartientEndPoints();
+app.MapDoctorEndpoints();
 
 app.Run();
