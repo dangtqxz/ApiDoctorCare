@@ -197,6 +197,48 @@ namespace ApiDoctorCare.Endpoints
 
                 return Results.Ok("Thêm lịch hẹn thành công.");
             });
+
+            //Xem thông tin lịch hẹn theo ID_BenhNhan
+            builder.MapGet("lichhen/{id}", async (int idBenhNhan, SqlConnectionFactory sqlConnectionFactory) =>
+            {
+                using var connection = sqlConnectionFactory.Create();
+
+                const string sql = @"
+                    SELECT 
+                        l.NgayHen, l.GioHen, t.HoTen as TenBacSi, l.TrieuChung, l.GhiChu, l.TrangThai FROM LichHen l 
+                        Join BacSi b On l.ID_BacSi = b.ID_BacSi
+                        Join TaiKhoan t On t.ID_TaiKhoan = b.ID_TaiKhoan
+                        Where ID_BenhNhan = @ID_BenhNhan";
+
+                var result = await connection.QueryAsync<dynamic>(sql, new { ID_BenhNhan = idBenhNhan });
+
+                if (result == null || !result.Any())
+                {
+                    return Results.NotFound("Không tìm thấy lịch hẹn của bệnh nhân này.");
+                }
+
+                return Results.Ok(result);
+            });
+
+            //Cập nhật trạng thái lịch hẹn
+            builder.MapPut("lichhen/{id}", async (int id, UpdateLichHenDto updateLichHenDto, SqlConnectionFactory sqlConnectionFactory) =>
+            {
+                using var connection = sqlConnectionFactory.Create();
+
+                const string sql = @"
+                    UPDATE LichHen
+                    SET
+                        TrangThai = @TrangThai
+                    WHERE ID_LichHen = @ID_LichHen";
+
+                await connection.ExecuteAsync(sql, new
+                {
+                    ID_LichHen = id,
+                    updateLichHenDto.TrangThai
+                });
+
+                return Results.Ok("Cập nhật trạng thái lịch hẹn thành công.");
+            });
         }
     }
 }
