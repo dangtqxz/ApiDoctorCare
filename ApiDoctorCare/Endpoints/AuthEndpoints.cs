@@ -29,7 +29,7 @@ namespace ApiDoctorCare.Endpoints
                 var isAdmin = await connection.ExecuteScalarAsync<int>(sqlAdmin, new { loginDto.TenDangNhap });
                 if (isAdmin > 0)
                 {
-                    return Results.Ok(new { RoleId = 1, Message = "Đăng nhập thành công." });
+                    return Results.Ok(new { tenDangNhap = loginDto.TenDangNhap, matKhau = loginDto.MatKhau, RoleId = 1, Message = "Đăng nhập thành công." });
                 }
 
                 // Kiểm tra Bác sĩ
@@ -37,70 +37,71 @@ namespace ApiDoctorCare.Endpoints
                 var isDoctor = await connection.ExecuteScalarAsync<int>(sqlDoctor, new { loginDto.TenDangNhap });
                 if (isDoctor > 0)
                 {
-                    return Results.Ok(new { RoleId = 2, Message = "Đăng nhập thành công." });
+                    return Results.Ok(new { tenDangNhap = loginDto.TenDangNhap, matKhau = loginDto.MatKhau, RoleId = 2, Message = "Đăng nhập thành công." });
                 }
 
                 // Kiểm tra Bệnh nhân
-                const string sqlPatient = "SELECT COUNT(*) FROM BenhNhan WHERE ID_TaiKhoan = (SELECT ID_TaiKhoan FROM TaiKhoan WHERE TenDangNhap = @TenDangNhap)";
-                var isPatient = await connection.ExecuteScalarAsync<int>(sqlPatient, new { loginDto.TenDangNhap });
-                if (isPatient > 0)
+                const string sqlSupport = "SELECT COUNT(*) FROM HoTro WHERE ID_TaiKhoan = (SELECT ID_TaiKhoan FROM TaiKhoan WHERE TenDangNhap = @TenDangNhap)";
+                var isSupport = await connection.ExecuteScalarAsync<int>(sqlSupport, new { loginDto.TenDangNhap });
+                if (isSupport > 0)
                 {
-                    return Results.Ok(new { RoleId = 3, Message = "Đăng nhập thành công." });
+                    return Results.Ok(new { tenDangNhap = loginDto.TenDangNhap, matKhau = loginDto.MatKhau, RoleId = 3, Message = "Đăng nhập thành công." });
                 }
 
                 return Results.Unauthorized(); // Hoặc dùng Results.Problem() nếu muốn có thông điệp
             });
 
+            //Lấy thông tin tài khoản theo tên đăng nhập
+            builder.MapPost("account", async (string TenDangNhap, SqlConnectionFactory sqlConnectionFactory) =>
+            {
+                using var connection = sqlConnectionFactory.Create();
+                const string sql = @"
+                    SELECT * FROM TaiKhoan
+                    WHERE TenDangNhap = @TenDangNhap";
+                var account = await connection.QueryFirstOrDefaultAsync<TaiKhoan>(sql, new
+                {
+                    TenDangNhap
+                });
+                return Results.Ok(account);
+            });
 
-            // Check Đăng ký với tài khoản user
-            builder.MapPost("register/partient", async (RegisterPartientDto registerPartientDto, SqlConnectionFactory sqlConnectionFactory) =>
+            //Quên mật khẩu
+            builder.MapPost("forgotpassword", async (string email, SqlConnectionFactory sqlConnectionFactory) =>
             {
                 using var connection = sqlConnectionFactory.Create();
 
-                // Kiểm tra tài khoản đã tồn tại chưa
-                const string sqlCheckAccount = "SELECT COUNT(*) FROM TaiKhoan WHERE TenDangNhap = @TenDangNhap";
-                var accountExists = await connection.ExecuteScalarAsync<int>(sqlCheckAccount, new { registerPartientDto.TenDangNhap });
+                const string check = @"
+                    SELECT COUNT(*) FROM TaiKhoan
+                    WHERE Email = @Email";
 
-                if (accountExists > 0)
+                var checkEmail = await connection.ExecuteScalarAsync<int>(check, new
                 {
-                    return Results.BadRequest(new { Message = "Tài khoản đã tồn tại." });
+                    Email = email
+                });
+
+                if (checkEmail == 0)
+                {
+                    return Results.NotFound();
                 }
 
-                // Thêm tài khoản
-                const string sqlAddAccount = @"
-                    INSERT INTO TaiKhoan(TenDangNhap, MatKhau, Email, HoTen, NgaySinh, GioiTinh, SDT, DiaChi, Avatar) 
-                    VALUES(@TenDangNhap, @MatKhau, @Email, @HoTen, @NgaySinh, @GioiTinh, @SDT, @DiaChi, @Avatar)";
-                await connection.ExecuteAsync(sqlAddAccount, new
+                const string sql = @"
+                    SELECT TenDangNhap, MatKhau FROM TaiKhoan
+                    WHERE Email = @Email";
+
+                var taiKhoan = await connection.QueryFirstOrDefaultAsync<dynamic>(sql, new
                 {
-                    registerPartientDto.TenDangNhap,
-                    registerPartientDto.MatKhau,
-                    registerPartientDto.Email,
-                    registerPartientDto.HoTen,
-                    registerPartientDto.NgaySinh,
-                    registerPartientDto.GioiTinh,
-                    registerPartientDto.SDT,
-                    registerPartientDto.DiaChi,
-                    registerPartientDto.Avatar
+                    Email = email
                 });
 
-                // Lấy ID_TaiKhoan vừa thêm
-                const string sqlGetID = "SELECT ID_TaiKhoan FROM TaiKhoan WHERE TenDangNhap = @TenDangNhap";
-                var idTaiKhoan = await connection.ExecuteScalarAsync<int>(sqlGetID, new { registerPartientDto.TenDangNhap });
-
-                // Thêm thông tin bệnh nhân
-                const string sqlAddPatient = @"
-                    INSERT INTO BenhNhan(ID_TaiKhoan, TienSuBenh, DiUng) 
-                    VALUES(@ID_TaiKhoan, @TienSuBenh, @DiUng)";
-                await connection.ExecuteAsync(sqlAddPatient, new
+                if (taiKhoan == null)
                 {
-                    ID_TaiKhoan = idTaiKhoan,
-                    registerPartientDto.TienSuBenh,
-                    registerPartientDto.DiUng
-                });
+                    return Results.NotFound();
+                }
 
-                return Results.Created("login", new { Message = "Đăng ký thành công." });
+                // Gửi thông tin tài khoản qua email
+                EmailServices.SendAccout(taiKhoan.TenDangNhap, taiKhoan.MatKhau, email );
+                return Results.Ok(taiKhoan);
             });
-
         }
     }
 }

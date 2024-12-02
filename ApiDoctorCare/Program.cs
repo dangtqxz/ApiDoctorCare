@@ -1,6 +1,8 @@
 ﻿using ApiDoctorCare.Models;
 using ApiDoctorCare.Services;
 using ApiDoctorCare.Endpoints;
+using Microsoft.EntityFrameworkCore;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +13,17 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext<MyDbContext>(options =>
+{
+    var connectionString = "Server=NGUYENDANG;Database=BookingCare;Trusted_Connection=True;TrustServerCertificate=True;";
+    options
+        .UseSqlServer(connectionString,
+            assembly =>
+                assembly.MigrationsAssembly
+                    (typeof(MyDbContext).Assembly.FullName))
+        .UseLazyLoadingProxies();
+});
 
 builder.Services.AddSingleton(serviceProvider =>
 {
@@ -23,6 +36,11 @@ builder.Services.AddSingleton(serviceProvider =>
 });
 
 var app = builder.Build();
+
+app.UseCors(policy => policy.AllowAnyHeader()
+                            .AllowAnyMethod()
+                            .SetIsOriginAllowed(origin => true)
+                            .AllowCredentials());
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -38,5 +56,8 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapPartientEndPoints();
 app.MapDoctorEndpoints();
+app.MapSupportEndPoints();
+app.MapAdminEndpoints();
+//app.MapSoSanhEndPoints();
 
 app.Run();
